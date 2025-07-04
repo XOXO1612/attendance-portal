@@ -64,12 +64,18 @@ def login():
             flash('Invalid username or password', 'danger')
             return redirect(url_for('login'))
     return render_template('login.html')
-
-@app.route('/logout')
+@app.route('/punch_out')
 @login_required
-def logout():
+def punch_out():
+    today = datetime.now(timezone.utc).date()
+    record = Attendance.query.filter_by(username=current_user.username, date=today).first()
+    if record:
+        record.time_out = datetime.now(timezone.utc).time()
+        db.session.commit()
     logout_user()
+    flash("You have successfully punched out and been logged out.", "info")
     return redirect(url_for('login'))
+
 
 @app.route('/mark_attendance')
 @login_required
