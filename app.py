@@ -41,6 +41,12 @@ class Break(db.Model):
 @login_manager.user_loader
 def load_user(username):
     return User.query.filter_by(username=username).first()
+@app.route('/')
+def home():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
