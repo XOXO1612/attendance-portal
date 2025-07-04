@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - XOXO{% endblock %}
+{% block content %}
+
+<h2 class="mb-4">👋 Welcome, {{ current_user.username }}</h2>
+
+<!-- Time Cards -->
+<div class="row g-4 mb-4">
+  <div class="col-md-6">
+    <div class="card shadow-sm border-start border-primary border-4">
+      <div class="card-body">
+        <h5 class="card-title">Logged Time</h5>
+        <h2 id="loggedTime">00:00:00</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card shadow-sm border-start border-dark border-4">
+      <div class="card-body">
+        <h5 class="card-title">Status</h5>
+        <div id="statusLight" class="rounded-circle bg-success blink" style="width: 30px; height: 30px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="d-flex gap-3 flex-wrap mb-5">
+  <a href="{{ url_for('mark_attendance') }}" class="btn btn-success">✔️ Mark Attendance</a>
+  <button class="btn btn-danger" onclick="confirmPunchOut()">⏹ Punch Out</button>
+  <button id="startBreakBtn" class="btn btn-warning">⏸ Start Break</button>
+  <button id="endBreakBtn" class="btn btn-info">▶️ End Break</button>
+</div>
+
+<!-- Calendar -->
+<div class="card shadow-sm">
+  <div class="card-header bg-light">
+    <strong>📅 Attendance Calendar</strong>
+  </div>
+  <div class="card-body">
+    <div id="calendar" class="d-flex flex-wrap" style="gap: 6px;"></div>
+  </div>
+</div>
+
+<!-- Styles -->
+<style>
+  .blink {
+    animation: blink-animation 1s infinite;
+  }
+  @keyframes blink-animation {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+  }
+  #calendar div {
+    width: 42px;
+    height: 42px;
+    line-height: 42px;
+    text-align: center;
+    border-radius: 50%;
+    font-weight: bold;
+    background-color: pink;
+  }
+</style>
+
+<!-- Scripts -->
+<script>
+  const loggedEl = document.getElementById("loggedTime");
+  const statusEl = document.getElementById("statusLight");
+  const startBreakBtn = document.getElementById("startBreakBtn");
+  const endBreakBtn = document.getElementById("endBreakBtn");
+
+  let startTime = parseInt(localStorage.getItem("loggedStartTime")) || Date.now();
+  let pausedTime = parseInt(localStorage.getItem("pausedTime")) || 0;
+  let breakStartTime = null;
+  let onBreak = localStorage.getItem("onBreak") === "true";
+
+  const today = new Date().toDateString();
+  const savedDate = localStorage.getItem("attendanceDate");
+
+  if (savedDate !== today) {
+    startTime = Date.now();
+    pausedTime = 0;
+    onBreak = false;
+    localStorage.setItem("loggedStartTime", startTime);
+    localStorage.setItem("pausedTime", "0");
+    localStorage.setItem("onBreak", "false");
+    localStorage.setItem("attendanceDate", today);
+  }
+
+  if (onBreak) {
+    breakStartTime = parseInt(localStorage.getItem("breakStartTime")) || Date.now();
+  }
+
+  function formatTime(ms) {
+    const s = Math.floor(ms / 1000);
+    const h = String(Math.floor(s / 3600)).padStart(2, '0');
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+    const sec = String(s % 60).padStart(2, '0');
+    return `${h}:${m}:${sec}`;
+  }
+
+  function updateClock() {
+    if (!onBreak) {
+      const now = Date.now();
+      const elapsed = now - startTime - pausedTime;
+      loggedEl.textContent = formatTime(elapsed);
+    }
+  }
+
+  function updateStatus() {
+    if (onBreak) {
+      statusEl.classList.remove("bg-success");
+      statusEl.classList.add("bg-dark");
+    } else {
+      statusEl.classList.remove("bg-dark");
+      statusEl.classList.add("bg-success");
+    }
+  }
+
+  startBreakBtn.addEventListener("click", () => {
+    if (!onBreak) {
+      breakStartTime = Date.now();
+      onBreak = true;
+      localStorage.setItem("onBreak", "true");
+      localStorage.setItem("breakStartTime", breakStartTime);
+    }
+    updateStatus();
+  });
+
+  endBreakBtn.addEventListener("click", () => {
+    if (onBreak && breakStartTime) {
+      const now = Date.now();
+      const breakDuration = now - breakStartTime;
+      pausedTime += breakDuration;
+      localStorage.setItem("pausedTime", pausedTime);
+      localStorage.removeItem("breakStartTime");
+      onBreak = false;
+      breakStartTime = null;
+      localStorage.setItem("onBreak", "false");
+    }
+    updateStatus();
+  });
+
+  function confirmPunchOut() {
+    if (confirm("Do you really want to end your Shift?")) {
+      localStorage.clear();  // Reset all timers
+      window.location.href = "{{ url_for('punch_out') }}";
+    }
+  }
+
+  setInterval(updateClock, 1000);
+  updateStatus();
+
+  // ====== Calendar Logic ======
+  const presentDays = {{ present_days|default([])|tojson }};
+  const calendar = document.getElementById("calendar");
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const cell = document.createElement("div");
+    cell.textContent = day;
+    if (presentDays.includes(day)) {
+      cell.style.backgroundColor = "red";
+      cell.style.color = "white";
+    }
+    calendar.appendChild(cell);
+  }
+</script>
+
+{% endblock %}

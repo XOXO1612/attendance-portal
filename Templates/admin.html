@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard - XOXO{% endblock %}
+{% block content %}
+<div class="admin-wrapper" style="background: #f4f6f9; min-height: 100vh; padding: 20px;">
+
+<h2 class="mb-4">👩‍💼 Admin Dashboard</h2>
+
+<!-- Chart Section -->
+<div class="row mb-5">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header bg-light">
+        <strong>Today's Attendance Count</strong>
+      </div>
+      <div class="card-body">
+        <canvas id="attendanceChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header bg-light">
+        <strong>Today's Break Duration (mins)</strong>
+      </div>
+      <div class="card-body">
+        <canvas id="breakChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card shadow-sm border-start border-success border-4">
+      <div class="card-body">
+        <h5 class="card-title">Total Users</h5>
+        <h2>{{ total_users }}</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card shadow-sm border-start border-primary border-4">
+      <div class="card-body">
+        <h5 class="card-title">Total Attendance Records</h5>
+        <h2>{{ total_attendance }}</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card shadow-sm border-start border-warning border-4">
+      <div class="card-body">
+        <h5 class="card-title">Total Breaks</h5>
+        <h2>{{ total_breaks }}</h2>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Export Buttons -->
+<div class="mb-4">
+  <a href="{{ url_for('export_attendance') }}" class="btn btn-outline-primary me-2">📥 Export Attendance</a>
+  <a href="{{ url_for('export_breaks') }}" class="btn btn-outline-warning">📥 Export Breaks</a>
+</div>
+
+<!-- Add New User -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-light">
+    <strong>Add New User</strong>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('add_user') }}">
+      <div class="row g-2">
+        <div class="col-md-5">
+          <input type="text" name="username" class="form-control" placeholder="Username" required>
+        </div>
+        <div class="col-md-5">
+          <input type="password" name="password" class="form-control" placeholder="Password" required>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-success w-100">Add User</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Attendance Table -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-light">
+    <strong>Attendance Records</strong>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Username</th>
+          <th>Date</th>
+          <th>Time In</th>
+          <th>Time Out</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in attendance_records %}
+        <tr>
+          <td>{{ record.username }}</td>
+          <td>{{ record.date }}</td>
+          <td>{{ record.time_in or '—' }}</td>
+          <td>{{ record.time_out or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Break Summary Table -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-light">
+    <strong>Break Summary</strong>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Username</th>
+          <th>Total Break Duration</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for summary in break_summary %}
+        <tr>
+          <td>{{ summary.username }}</td>
+          <td>{{ summary.total_duration }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Reset Password Section -->
+<div class="card shadow-sm">
+  <div class="card-header bg-light">
+    <strong>Reset User Passwords</strong>
+  </div>
+  <div class="card-body">
+    <div class="row row-cols-1 row-cols-md-4 g-2">
+      {% for user in users %}
+        {% if user.username != 'admin' %}
+        <div class="col">
+          <div class="d-grid">
+            <a href="{{ url_for('reset_password', username=user.username) }}" class="btn btn-outline-danger btn-sm">
+              🔒 Reset {{ user.username }}
+            </a>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const attendanceCtx = document.getElementById('attendanceChart').getContext('2d');
+  const attendanceChart = new Chart(attendanceCtx, {
+    type: 'bar',
+    data: {
+      labels: {{ attendance_summary.keys()|list|tojson|safe }},
+      datasets: [{
+        label: 'Attendance Count',
+        data: {{ attendance_summary.values()|list|tojson|safe }},
+        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  const breakCtx = document.getElementById('breakChart').getContext('2d');
+  const breakChart = new Chart(breakCtx, {
+    type: 'bar',
+    data: {
+      labels: {{ break_summary_today.keys()|list|tojson|safe }},
+      datasets: [{
+        label: 'Break Duration (mins)',
+        data: {{ break_summary_today.values()|list|tojson|safe }},
+        backgroundColor: 'rgba(255, 206, 86, 0.6)',
+        borderColor: 'rgba(255, 206, 86, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+</script>
+</div>
+{% endblock %}
