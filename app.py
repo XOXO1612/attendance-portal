@@ -41,12 +41,12 @@ class Break(db.Model):
 @login_manager.user_loader
 def load_user(username):
     return User.query.filter_by(username=username).first()
+
 @app.route('/')
 def home():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -64,18 +64,12 @@ def login():
             flash('Invalid username or password', 'danger')
             return redirect(url_for('login'))
     return render_template('login.html')
-@app.route('/punch_out')
-@login_required
-def punch_out():
-    today = datetime.now(timezone.utc).date()
-    record = Attendance.query.filter_by(username=current_user.username, date=today).first()
-    if record:
-        record.time_out = datetime.now(timezone.utc).time()
-        db.session.commit()
-    logout_user()
-    flash("You have successfully punched out and been logged out.", "info")
-    return redirect(url_for('login'))
 
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 @app.route('/mark_attendance')
 @login_required
@@ -83,7 +77,6 @@ def mark_attendance():
     now = datetime.now(timezone.utc)
     today = now.date()
     allowed_start = now.replace(hour=13, minute=0, second=0, microsecond=0)
-    allowed_end = now.replace(hour=7, minute=0, second=0, microsecond=0)
     if now.hour < 7:
         allowed_start = allowed_start.replace(day=allowed_start.day - 1)
     if Attendance.query.filter_by(username=current_user.username, date=today).first():
@@ -103,7 +96,9 @@ def punch_out():
     if record:
         record.time_out = datetime.now(timezone.utc).time()
         db.session.commit()
-    return redirect(url_for('dashboard'))
+    logout_user()
+    flash("You have successfully punched out and been logged out.", "info")
+    return redirect(url_for('login'))
 
 @app.route('/start_break')
 @login_required
@@ -134,9 +129,7 @@ def dashboard():
         for a in Attendance.query.filter_by(username=current_user.username).all()
         if a.date.month == today.month
     ]
-
     return render_template('dashboard.html', present_days=present_days)
-
 
 @app.route('/admin')
 @login_required
@@ -203,7 +196,6 @@ def add_user():
     new_user = User(username=username, password=hashed_password)
     db.session.add(new_user)
     db.session.commit()
-
     return redirect(url_for('admin'))
 
 @app.route('/admin/reset_password/<username>', methods=['GET', 'POST'])
