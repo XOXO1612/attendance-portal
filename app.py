@@ -3,10 +3,14 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timezone
+from datetime import datetime
 from io import BytesIO
 import pandas as pd
 from sqlalchemy.sql import func
+import pytz
+
+# Use Indian Standard Time
+IST = pytz.timezone('Asia/Kolkata')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'yoursecretkeyhere'
@@ -26,16 +30,16 @@ class User(UserMixin, db.Model):
 class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), nullable=False)
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    date = db.Column(db.Date, default=lambda: datetime.now(timezone.utc).date())
-    time_in = db.Column(db.Time, default=lambda: datetime.now(timezone.utc).time())
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(IST))
+    date = db.Column(db.Date, default=lambda: datetime.now(IST).date())
+    time_in = db.Column(db.Time, default=lambda: datetime.now(IST).time())
     time_out = db.Column(db.Time, nullable=True)
 
 class Break(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), nullable=False)
-    date = db.Column(db.Date, default=lambda: datetime.now(timezone.utc).date())
-    break_start = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    date = db.Column(db.Date, default=lambda: datetime.now(IST).date())
+    break_start = db.Column(db.DateTime, default=lambda: datetime.now(IST))
     break_end = db.Column(db.DateTime, nullable=True)
 
 @login_manager.user_loader
@@ -56,10 +60,7 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password, password):
             login_user(user)
-            if user.username == 'admin':
-                return redirect(url_for('admin'))
-            else:
-                return redirect(url_for('dashboard'))
+            return redirect(url_for('admin' if user.username == 'admin' else 'dashboard'))
         else:
             flash('Invalid username or password', 'danger')
             return redirect(url_for('login'))
@@ -74,11 +75,8 @@ def logout():
 @app.route('/mark_attendance')
 @login_required
 def mark_attendance():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(IST)
     today = now.date()
-    allowed_start = now.replace(hour=13, minute=0, second=0, microsecond=0)
-    if now.hour < 7:
-        allowed_start = allowed_start.replace(day=allowed_start.day - 1)
     if Attendance.query.filter_by(username=current_user.username, date=today).first():
         flash("Attendance already marked for today.", "info")
     else:
@@ -91,10 +89,10 @@ def mark_attendance():
 @app.route('/punch_out')
 @login_required
 def punch_out():
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(IST).date()
     record = Attendance.query.filter_by(username=current_user.username, date=today).first()
     if record:
-        record.time_out = datetime.now(timezone.utc).time()
+        record.time_out = datetime.now(IST).time()
         db.session.commit()
     logout_user()
     flash("You have successfully punched out and been logged out.", "info")
@@ -113,7 +111,7 @@ def start_break():
 def end_break():
     latest_break = Break.query.filter_by(username=current_user.username, break_end=None).order_by(Break.break_start.desc()).first()
     if latest_break:
-        latest_break.break_end = datetime.now(timezone.utc)
+        latest_break.break_end = datetime.now(IST)
         db.session.commit()
     return redirect(url_for('dashboard'))
 
@@ -123,12 +121,13 @@ def dashboard():
     if current_user.username == 'admin':
         return redirect(url_for('admin'))
 
-    today = datetime.now().date()
+    today = datetime.now(IST).date()
     present_days = [
         a.date.day
         for a in Attendance.query.filter_by(username=current_user.username).all()
         if a.date.month == today.month
     ]
+
     return render_template('dashboard.html', present_days=present_days)
 
 @app.route('/admin')
@@ -155,16 +154,14 @@ def admin():
     ]
 
     users = User.query.all()
+    today = datetime.now(IST).date()
 
-    today = datetime.now(timezone.utc).date()
     attendance_summary = {}
-    records_today = Attendance.query.filter(Attendance.date == today).all()
-    for r in records_today:
+    for r in Attendance.query.filter(Attendance.date == today).all():
         attendance_summary[r.username] = attendance_summary.get(r.username, 0) + 1
 
     break_summary_today = {}
-    breaks_today = Break.query.filter(func.date(Break.break_start) == today, Break.break_end.isnot(None)).all()
-    for b in breaks_today:
+    for b in Break.query.filter(func.date(Break.break_start) == today, Break.break_end.isnot(None)).all():
         duration = (b.break_end - b.break_start).total_seconds() / 60
         break_summary_today[b.username] = break_summary_today.get(b.username, 0) + round(duration, 1)
 
@@ -188,12 +185,10 @@ def add_user():
 
     username = request.form['username']
     password = request.form['password']
-    existing_user = User.query.filter_by(username=username).first()
-    if existing_user:
+    if User.query.filter_by(username=username).first():
         return render_template('admin.html', error="Username already exists")
 
-    hashed_password = generate_password_hash(password)
-    new_user = User(username=username, password=hashed_password)
+    new_user = User(username=username, password=generate_password_hash(password))
     db.session.add(new_user)
     db.session.commit()
     return redirect(url_for('admin'))
@@ -207,8 +202,7 @@ def reset_password(username):
     user = User.query.filter_by(username=username).first_or_404()
     if request.method == 'POST':
         new_password = request.form['new_password']
-        hashed_password = generate_password_hash(new_password)
-        user.password = hashed_password
+        user.password = generate_password_hash(new_password)
         db.session.commit()
         flash(f"Password for {username} has been reset successfully!", "success")
         return redirect(url_for('admin'))
@@ -222,8 +216,12 @@ def export_attendance():
         return "Unauthorized Access", 403
 
     records = Attendance.query.order_by(Attendance.timestamp.desc()).all()
-    data = [{'Username': r.username, 'Date': r.date, 'Time In': r.time_in, 'Time Out': r.time_out} for r in records]
-    df = pd.DataFrame(data)
+    df = pd.DataFrame([{
+        'Username': r.username,
+        'Date': r.date,
+        'Time In': r.time_in,
+        'Time Out': r.time_out
+    } for r in records])
 
     output = BytesIO()
     df.to_excel(output, index=False, engine='openpyxl')
@@ -237,8 +235,11 @@ def export_breaks():
         return "Unauthorized Access", 403
 
     breaks = Break.query.order_by(Break.id.desc()).all()
-    data = [{'Username': b.username, 'Break Start': b.break_start, 'Break End': b.break_end} for b in breaks]
-    df = pd.DataFrame(data)
+    df = pd.DataFrame([{
+        'Username': b.username,
+        'Break Start': b.break_start,
+        'Break End': b.break_end
+    } for b in breaks])
 
     output = BytesIO()
     df.to_excel(output, index=False, engine='openpyxl')
