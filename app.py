@@ -1,3 +1,4 @@
+# app.py
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -8,6 +9,7 @@ import pandas as pd
 from sqlalchemy.sql import func
 import pytz
 
+# Use Indian Standard Time
 IST = pytz.timezone('Asia/Kolkata')
 
 app = Flask(__name__)
@@ -99,22 +101,18 @@ def punch_out():
 @app.route('/start_break')
 @login_required
 def start_break():
-    now = datetime.now(IST)
-    br = Break(username=current_user.username, date=now.date(), break_start=now)
+    br = Break(username=current_user.username)
     db.session.add(br)
     db.session.commit()
-    print(f"Break started for {current_user.username} at {now}")
     return redirect(url_for('dashboard'))
 
 @app.route('/end_break')
 @login_required
 def end_break():
-    now = datetime.now(IST)
     latest_break = Break.query.filter_by(username=current_user.username, break_end=None).order_by(Break.break_start.desc()).first()
     if latest_break:
-        latest_break.break_end = now
+        latest_break.break_end = datetime.now(IST)
         db.session.commit()
-        print(f"Break ended for {current_user.username} at {now}")
     return redirect(url_for('dashboard'))
 
 @app.route('/dashboard')
@@ -143,9 +141,6 @@ def admin():
     total_breaks = Break.query.count()
     attendance_records = Attendance.query.order_by(Attendance.timestamp.desc()).all()
 
-    users = User.query.all()
-    today = datetime.now(IST).date()
-
     break_summary = db.session.query(
         Break.username,
         func.sum(func.strftime('%s', Break.break_end) - func.strftime('%s', Break.break_start)).label('total_seconds')
@@ -157,6 +152,9 @@ def admin():
             'total_duration': str(datetime.utcfromtimestamp(row[1]).strftime('%H:%M:%S')) if row[1] else '00:00:00'
         } for row in break_summary
     ]
+
+    users = User.query.all()
+    today = datetime.now(IST).date()
 
     attendance_summary = {}
     for r in Attendance.query.filter(Attendance.date == today).all():
@@ -217,8 +215,7 @@ def export_attendance():
     if current_user.username != 'admin':
         return "Unauthorized Access", 403
 
-    today = datetime.now(IST).date()
-    records = Attendance.query.filter(Attendance.date == today).order_by(Attendance.timestamp.desc()).all()
+    records = Attendance.query.order_by(Attendance.timestamp.desc()).all()
     df = pd.DataFrame([{
         'Username': r.username,
         'Date': r.date,
@@ -229,7 +226,7 @@ def export_attendance():
     output = BytesIO()
     df.to_excel(output, index=False, engine='openpyxl')
     output.seek(0)
-    return send_file(output, download_name=f'attendance_report_{today}.xlsx', as_attachment=True)
+    return send_file(output, download_name='attendance_report.xlsx', as_attachment=True)
 
 @app.route('/export/breaks')
 @login_required
@@ -237,8 +234,7 @@ def export_breaks():
     if current_user.username != 'admin':
         return "Unauthorized Access", 403
 
-    today = datetime.now(IST).date()
-    breaks = Break.query.filter(Break.date == today).order_by(Break.id.desc()).all()
+    breaks = Break.query.order_by(Break.id.desc()).all()
     df = pd.DataFrame([{
         'Username': b.username,
         'Break Start': b.break_start,
@@ -248,12 +244,7 @@ def export_breaks():
     output = BytesIO()
     df.to_excel(output, index=False, engine='openpyxl')
     output.seek(0)
-    return send_file(output, download_name=f'breaks_report_{today}.xlsx', as_attachment=True)
-
-@app.route('/debug/breaks')
-def debug_breaks():
-    all_breaks = Break.query.all()
-    return f"Total breaks recorded: {len(all_breaks)}"
+    return send_file(output, download_name='breaks_report.xlsx', as_attachment=True)
 
 if __name__ == '__main__':
     with app.app_context():
