@@ -58,10 +58,24 @@
   </div>
 </div>
 
-<!-- Export Buttons -->
-<div class="mb-4">
-  <a href="{{ url_for('export_attendance') }}" class="btn btn-outline-primary me-2">📥 Export Attendance</a>
-  <a href="{{ url_for('export_breaks') }}" class="btn btn-outline-warning">📥 Export Breaks</a>
+<!-- Export Section with Date Picker -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-light">
+    <strong>Export Reports by Date</strong>
+  </div>
+  <div class="card-body">
+    <form class="row g-2" method="GET">
+      <div class="col-md-4">
+        <input type="date" id="reportDate" name="report_date" class="form-control" required>
+      </div>
+      <div class="col-md-4">
+        <a class="btn btn-outline-primary w-100" onclick="exportByDate('attendance')">📥 Export Attendance</a>
+      </div>
+      <div class="col-md-4">
+        <a class="btn btn-outline-warning w-100" onclick="exportByDate('breaks')">📥 Export Breaks</a>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- Add New User -->
@@ -200,6 +214,15 @@
       scales: { y: { beginAtZero: true } }
     }
   });
+
+  function exportByDate(type) {
+    const date = document.getElementById("reportDate").value;
+    if (!date) {
+      alert("Please select a date first.");
+      return;
+    }
+    window.location.href = `/export/${type}?date=${date}`;
+  }
 </script>
 </div>
 {% endblock %}
