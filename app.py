@@ -138,10 +138,10 @@ def admin():
     total_attendance = Attendance.query.count()
     total_breaks = Break.query.count()
     attendance_records = Attendance.query.order_by(Attendance.timestamp.desc()).all()
-
     users = User.query.all()
     today = datetime.now(IST).date()
 
+    # Break summary
     break_summary = db.session.query(
         Break.username,
         func.sum(func.strftime('%s', Break.break_end) - func.strftime('%s', Break.break_start)).label('total_seconds')
@@ -154,14 +154,23 @@ def admin():
         } for row in break_summary
     ]
 
+    # Today's attendance summary
     attendance_summary = {}
     for r in Attendance.query.filter(Attendance.date == today).all():
         attendance_summary[r.username] = attendance_summary.get(r.username, 0) + 1
 
+    # Today's break summary
     break_summary_today = {}
     for b in Break.query.filter(func.date(Break.break_start) == today, Break.break_end.isnot(None)).all():
         duration = (b.break_end - b.break_start).total_seconds() / 60
         break_summary_today[b.username] = break_summary_today.get(b.username, 0) + round(duration, 1)
+
+    # Live break monitoring
+    on_break_users = Break.query.filter(Break.break_end.is_(None)).all()
+    break_live_status = [{
+        'username': br.username,
+        'duration': round((datetime.now(IST) - br.break_start).total_seconds() / 60, 1)
+    } for br in on_break_users]
 
     return render_template(
         'admin.html',
@@ -172,7 +181,8 @@ def admin():
         break_summary=break_summary,
         users=users,
         attendance_summary=attendance_summary,
-        break_summary_today=break_summary_today
+        break_summary_today=break_summary_today,
+        break_live_status=break_live_status
     )
 
 @app.route('/admin/add_user', methods=['POST'])
@@ -231,7 +241,6 @@ def export_attendance(selected_date):
     output.seek(0)
     return send_file(output, download_name=f'attendance_report_{selected_date}.xlsx', as_attachment=True)
 
-
 @app.route('/export/breaks/<selected_date>')
 @login_required
 def export_breaks(selected_date):
@@ -254,7 +263,6 @@ def export_breaks(selected_date):
     df.to_excel(output, index=False, engine='openpyxl')
     output.seek(0)
     return send_file(output, download_name=f'breaks_report_{selected_date}.xlsx', as_attachment=True)
-
 
 if __name__ == '__main__':
     with app.app_context():

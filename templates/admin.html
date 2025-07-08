@@ -58,6 +58,35 @@
   </div>
 </div>
 
+<!-- Live Breaks Section -->
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-light">
+    <strong>Employees Currently on Break</strong>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Username</th>
+          <th>Break Start Time</th>
+          <th>Duration (seconds)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for br in live_breaks %}
+        <tr>
+          <td>{{ br.username }}</td>
+          <td>{{ br.start_time }}</td>
+          <td>{{ br.duration_seconds }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-center">No one is currently on break.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <!-- Export Section with Date Picker -->
 <div class="card shadow-sm mb-4">
   <div class="card-header bg-light">
@@ -216,12 +245,12 @@
   });
 
   function exportByDate(type) {
-  const date = document.getElementById("reportDate").value;
-  if (!date) {
-    alert("Please select a date first.");
-    return;
-  }
-  window.location.href = `/export/${type}/${date}`;
+    const date = document.getElementById("reportDate").value;
+    if (!date) {
+      alert("Please select a date first.");
+      return;
+    }
+    window.location.href = `/export/${type}/${date}`;
   }
 </script>
 </div>
