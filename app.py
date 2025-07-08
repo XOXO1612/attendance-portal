@@ -106,18 +106,23 @@ def punch_out():
 @login_required
 def start_break():
     now = datetime.now(IST)
-    br = Break(username=current_user.username, date=now.date(), break_start=now)
+    br = Break(username=current_user.username, break_start=now, date=now.date())
     db.session.add(br)
     db.session.commit()
+    flash("Break started", "info")
     return redirect(url_for('dashboard'))
 
 @app.route('/end_break')
 @login_required
 def end_break():
-    latest = Break.query.filter_by(username=current_user.username, break_end=None).order_by(Break.break_start.desc()).first()
-    if latest:
-        latest.break_end = datetime.now(IST)
+    now = datetime.now(IST)
+    latest_break = Break.query.filter_by(username=current_user.username, break_end=None).order_by(Break.break_start.desc()).first()
+    if latest_break:
+        latest_break.break_end = now
         db.session.commit()
+        flash("Break ended", "info")
+    else:
+        flash("No ongoing break found", "warning")
     return redirect(url_for('dashboard'))
 
 @app.route('/dashboard')
