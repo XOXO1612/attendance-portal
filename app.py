@@ -241,6 +241,11 @@ def export_breaks():
     output.seek(0)
     return send_file(output, download_name=f'breaks_report_{today}.xlsx', as_attachment=True)
 
+@app.route('/debug/breaks')
+def debug_breaks():
+    all_breaks = Break.query.all()
+    return f"Total breaks recorded: {len(all_breaks)}"
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
