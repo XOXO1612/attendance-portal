@@ -216,12 +216,12 @@
   });
 
   function exportByDate(type) {
-    const date = document.getElementById("reportDate").value;
-    if (!date) {
-      alert("Please select a date first.");
-      return;
-    }
-    window.location.href = `/export/${type}?date=${date}`;
+  const date = document.getElementById("reportDate").value;
+  if (!date) {
+    alert("Please select a date first.");
+    return;
+  }
+  window.location.href = `/export/${type}/${date}`;
   }
 </script>
 </div>

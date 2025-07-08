@@ -207,20 +207,18 @@ def reset_password(username):
 
     return render_template('reset_password.html', user=user)
 
-@app.route('/export/attendance_by_date')
+@app.route('/export/attendance/<selected_date>')
 @login_required
-def export_attendance_by_date():
+def export_attendance(selected_date):
     if current_user.username != 'admin':
         return "Unauthorized Access", 403
 
-    date_str = request.args.get('date')
     try:
-        report_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except Exception:
-        flash("Invalid date format.", "danger")
-        return redirect(url_for('admin'))
+        date_obj = datetime.strptime(selected_date, '%Y-%m-%d').date()
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD.", 400
 
-    records = Attendance.query.filter(Attendance.date == report_date).order_by(Attendance.timestamp.desc()).all()
+    records = Attendance.query.filter(Attendance.date == date_obj).order_by(Attendance.timestamp.desc()).all()
     df = pd.DataFrame([{
         'Username': r.username,
         'Date': r.date,
@@ -231,22 +229,21 @@ def export_attendance_by_date():
     output = BytesIO()
     df.to_excel(output, index=False, engine='openpyxl')
     output.seek(0)
-    return send_file(output, download_name=f'attendance_report_{report_date}.xlsx', as_attachment=True)
+    return send_file(output, download_name=f'attendance_report_{selected_date}.xlsx', as_attachment=True)
 
-@app.route('/export/breaks_by_date')
+
+@app.route('/export/breaks/<selected_date>')
 @login_required
-def export_breaks_by_date():
+def export_breaks(selected_date):
     if current_user.username != 'admin':
         return "Unauthorized Access", 403
 
-    date_str = request.args.get('date')
     try:
-        report_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except Exception:
-        flash("Invalid date format.", "danger")
-        return redirect(url_for('admin'))
+        date_obj = datetime.strptime(selected_date, '%Y-%m-%d').date()
+    except ValueError:
+        return "Invalid date format. Use YYYY-MM-DD.", 400
 
-    breaks = Break.query.filter(Break.date == report_date).order_by(Break.id.desc()).all()
+    breaks = Break.query.filter(Break.date == date_obj).order_by(Break.id.desc()).all()
     df = pd.DataFrame([{
         'Username': b.username,
         'Break Start': b.break_start,
@@ -256,7 +253,8 @@ def export_breaks_by_date():
     output = BytesIO()
     df.to_excel(output, index=False, engine='openpyxl')
     output.seek(0)
-    return send_file(output, download_name=f'breaks_report_{report_date}.xlsx', as_attachment=True)
+    return send_file(output, download_name=f'breaks_report_{selected_date}.xlsx', as_attachment=True)
+
 
 if __name__ == '__main__':
     with app.app_context():
